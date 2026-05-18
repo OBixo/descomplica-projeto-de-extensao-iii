@@ -1,0 +1,25 @@
+(function() {
+    const seletor = '[title="Download Dacte"], [title="Download DANF-e"]:not([onclick*="downloadAllDanfes"])';
+    const botoes = document.querySelectorAll(seletor);
+    
+    if (botoes.length === 0) {
+        console.warn("Nenhum botão individual de download foi encontrado com este seletor.");
+        return;
+    }
+
+    console.log(`Iniciando download de ${botoes.length} arquivos individuais...`);
+
+    let i = 0;
+    const interval = setInterval(() => {
+        if (i >= botoes.length) {
+            clearInterval(interval);
+            console.log("✅ Todos os downloads individuais foram acionados!");
+            return;
+        }
+
+        botoes[i].click();
+        console.log(`[${i + 1}/${botoes.length}] Baixando: ${botoes[i].title}`);
+        
+        i++;
+    }, 1000);
+})();
