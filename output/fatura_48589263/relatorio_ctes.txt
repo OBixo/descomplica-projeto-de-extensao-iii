@@ -1,8 +1,0 @@
-Relatorio de impressao apenas CTEs
-======================================================================
-[OK] Ordem 001 | Referencia=005321307 -> DACTE_259561409.pdf
-
-======================================================================
-Total de linhas da fatura lidas: 1
-PDFs adicionados: 1
-Linhas com falta: 0
