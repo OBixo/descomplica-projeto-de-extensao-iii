@@ -37,6 +37,18 @@ CSV_HEADERS = [
     "Peso da Mercadoria (Kg)",
 ]
 
+CSV_CEPS_FIELDS = [
+    "arquivo_pdf",
+    "numero_conhecimento",
+    "cep_destinatario",
+]
+
+CSV_CEPS_HEADERS = [
+    "Arquivo PDF",
+    "Numero Conhecimento",
+    "CEP Destinatario",
+]
+
 
 INVOICE_LINE_RE = re.compile(
     r"^\s*(\d{6,})\s+\S+\s+\S+\s+\d{2}/\d{2}/\d{4}\s+[\d.,]+\s+(\d{3,})\b",
@@ -94,6 +106,59 @@ def extract_dacte_number(text: str) -> Optional[str]:
         return fallback.group(1)
 
     return None
+
+
+def normalize_cep(value: str) -> str:
+    digits = re.sub(r"\D", "", value)
+    if len(digits) != 8:
+        return ""
+    return f"{digits[:5]}-{digits[5:]}"
+
+
+def find_labeled_cep(text: str, labels: List[str]) -> str:
+    label_union = "|".join(labels)
+    patterns = [
+        re.compile(
+            rf"(?:{label_union})[^\n]*?\bCEP\b[^\d]{{0,10}}(\d{{5}}-?\d{{3}})",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            rf"(?:{label_union})[\s\S]{{0,140}}?\bCEP\b[^\d]{{0,10}}(\d{{5}}-?\d{{3}})",
+            re.IGNORECASE,
+        ),
+    ]
+
+    for pattern in patterns:
+        match = pattern.search(text)
+        if match:
+            return normalize_cep(match.group(1))
+
+    return ""
+
+
+def extract_dacte_cep_destinatario(text: str) -> str:
+    # Mapeamento principal: em muitos DACTEs, a linha de municipio traz dois CEPs
+    # (origem/remetente e destino/destinatario). O segundo CEP e do destinatario.
+    municipio_pair = re.search(
+        r"MUNIC[IÍ]PIO[^\n]*CEP\s*(\d{5}-?\d{3})[^\n]*MUNIC[IÍ]PIO[^\n]*CEP\s*(\d{5}-?\d{3})",
+        text,
+        re.IGNORECASE,
+    )
+    if municipio_pair:
+        return normalize_cep(municipio_pair.group(2))
+
+    # Alternativa comum: bloco REMETENTE/DESTINATARIO/TOMADOR com 3 CEPs.
+    # O segundo CEP pertence ao destinatario.
+    rem_dest_tom = re.search(
+        r"REMETENTE\s+DESTINAT[AÁ]RIO\s+TOMADOR[\s\S]{0,220}?CEP\s*(\d{5}-?\d{3})[\s\S]{0,80}?CEP\s*(\d{5}-?\d{3})",
+        text,
+        re.IGNORECASE,
+    )
+    if rem_dest_tom:
+        return normalize_cep(rem_dest_tom.group(2))
+
+    cep_destinatario = find_labeled_cep(text, [r"DESTINAT[AÁ]RIO"])
+    return cep_destinatario
 
 
 def extract_dacte_info(pdf_path: Path) -> Optional[Dict[str, str]]:
@@ -223,6 +288,50 @@ def export_dactes_to_csv(folder: Path, csv_path: Path) -> int:
         writer.writerows(rows)
 
     return len(rows)
+
+
+def export_dacte_ceps_to_csv(folder: Path, csv_path: Path) -> int:
+    """Exporta numero do conhecimento e CEP do destinatario dos DACTEs para CSV."""
+    rows = []
+    for pdf_path in sorted(folder.glob("*.pdf")):
+        if "DACTE" not in pdf_path.name.upper():
+            continue
+
+        try:
+            reader = PdfReader(str(pdf_path))
+            text = "\n".join((page.extract_text() or "") for page in reader.pages[:3])
+        except Exception as exc:
+            print(f"[ERRO] Falha ao ler DACTE {pdf_path.name}: {exc}")
+            continue
+
+        numero_conhecimento = extract_dacte_number(text) or ""
+        cep_destinatario = extract_dacte_cep_destinatario(text)
+        rows.append(
+            {
+                "arquivo_pdf": pdf_path.name,
+                "numero_conhecimento": numero_conhecimento,
+                "cep_destinatario": cep_destinatario,
+            }
+        )
+
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    with csv_path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_CEPS_FIELDS)
+        writer.writerow(dict(zip(CSV_CEPS_FIELDS, CSV_CEPS_HEADERS)))
+        writer.writerows(rows)
+
+    return len(rows)
+
+
+def run_extract_ceps(folder_path: Path, csv_ceps_path: Path) -> int:
+    if not folder_path.exists():
+        print(f"[ERRO] Pasta nao encontrada: {folder_path}")
+        return 1
+
+    print("Extraindo numero do CTE e CEP do destinatario dos DACTEs...")
+    count = export_dacte_ceps_to_csv(folder_path, csv_ceps_path)
+    print(f"CSV de CEPs gerado com {count} registro(s): {csv_ceps_path}")
+    return 0
 
 
 def index_dactes(folder: Path) -> Tuple[Dict[str, Path], Dict[str, List[Path]]]:
@@ -656,10 +765,15 @@ def main() -> int:
         help="Arquivo CSV com informacoes dos DACTEs",
     )
     parser.add_argument(
+        "--csv-ceps",
+        default="output/dactes_ceps.csv",
+        help="Arquivo CSV com numero do CTE e CEPs dos DACTEs",
+    )
+    parser.add_argument(
         "--modo",
         default="pares",
-        choices=["analisar", "pares", "ctes", "nfs"],
-        help="Modo de execucao: analisar, pares, ctes ou nfs",
+        choices=["analisar", "pares", "ctes", "nfs", "ceps"],
+        help="Modo de execucao: analisar, pares, ctes, nfs ou ceps",
     )
 
     args = parser.parse_args()
@@ -668,6 +782,10 @@ def main() -> int:
     folder_path = Path(args.pasta).resolve()
     output_root_dir = Path(args.saida).resolve().parent
     csv_path = Path(args.csv).resolve()
+    csv_ceps_path = Path(args.csv_ceps).resolve()
+
+    if args.modo == "ceps":
+        return run_extract_ceps(folder_path=folder_path, csv_ceps_path=csv_ceps_path)
 
     try:
         (

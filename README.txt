@@ -6,6 +6,7 @@ OBJETIVO
 - Exibir em tela os problemas de conciliacao encontrados.
 - Gerar PDF(s) de impressao por fatura conforme a opcao escolhida no menu.
 - Gerar um CSV com dados extraidos dos DACTEs.
+- Extrair numero do CTE e apenas o CEP do destinatario diretamente dos DACTEs (independente da fatura).
 
 COMO O PAREAMENTO FUNCIONA
 - AWB (na fatura, coluna NUMERO AWB) -> DACTE pelo campo interno NUMERO do PDF.
@@ -39,8 +40,9 @@ EXECUCAO (MODO PADRAO)
    - 2 - Imprimir pares na ordem da(s) fatura(s)
    - 3 - Imprimir PDF apenas CTEs
    - 4 - Imprimir PDF apenas com as NFs
-   - 5 - Sair
-7) As opcoes 1, 2, 3 e 4 retornam ao menu ao final da execucao.
+    - 5 - Extrair CEP do destinatario
+    - 6 - Sair
+7) As opcoes 1, 2, 3, 4 e 5 retornam ao menu ao final da execucao.
 
 SAIDA GERADA
 - Para multiplas faturas:
@@ -59,6 +61,7 @@ SAIDA GERADA
   - output\relatorio_nfs.txt
 - Sempre:
   - output\dactes.csv
+  - output\dactes_ceps.csv
 
 CSV DACTES (output\dactes.csv)
 Campos exportados:
@@ -72,6 +75,15 @@ Campos exportados:
 - UF Destino
 - Valor da Mercadoria
 - Peso da Mercadoria (Kg)
+
+CSV CEPS (output\dactes_ceps.csv)
+Campos exportados:
+- Arquivo PDF
+- Numero Conhecimento
+- CEP Destinatario
+
+Observacao:
+- A opcao "Extrair CEPs" usa apenas os PDFs DACTE de input\dactes e danfes\ e nao depende da existencia de arquivo de fatura.
 
 AMBIENTE WINDOWS RESTRITO (SEM ADMIN / SEM DOWNLOAD)
 - O projeto roda sem permissao de administrador.

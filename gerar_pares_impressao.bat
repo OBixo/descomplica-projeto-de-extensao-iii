@@ -90,10 +90,12 @@ echo 1 - Refazer analise
 echo 2 - Imprimir pares na ordem da(s) fatura(s)
 echo 3 - Imprimir PDF apenas CTEs
 echo 4 - Imprimir PDF apenas com as NFs
-echo 5 - Sair
-choice /c 12345 /n /m "Digite o numero desejado: "
+echo 5 - Extrair CEP do destinatario
+echo 6 - Sair
+choice /c 123456 /n /m "Digite o numero desejado: "
 
-if errorlevel 5 goto :fim
+if errorlevel 6 goto :fim
+if errorlevel 5 goto :op_ceps
 if errorlevel 4 goto :op_nfs
 if errorlevel 3 goto :op_ctes
 if errorlevel 2 goto :op_pares
@@ -134,6 +136,15 @@ echo.
 pause
 goto :menu
 
+:op_ceps
+echo.
+echo Extraindo CEP do destinatario dos DACTEs...
+call :cleanup_root_outputs ceps
+call :run_python ceps
+echo.
+pause
+goto :menu
+
 :fim
 echo.
 echo Encerrado.
@@ -141,7 +152,7 @@ echo Encerrado.
 goto :eof
 
 :run_python
-"%RUNTIME_EXE%" "%~dp0gerar_pares_impressao.py" --modo %1 --pasta-faturas "%INPUT_DIR%" --pasta "%INPUT_DIR%\dactes e danfes" --saida "%OUTPUT_DIR%\impressao_pares_ordenada.pdf" --relatorio "%OUTPUT_DIR%\relatorio_conciliacao.txt" --csv "%OUTPUT_DIR%\dactes.csv"
+"%RUNTIME_EXE%" "%~dp0gerar_pares_impressao.py" --modo %1 --pasta-faturas "%INPUT_DIR%" --pasta "%INPUT_DIR%\dactes e danfes" --saida "%OUTPUT_DIR%\impressao_pares_ordenada.pdf" --relatorio "%OUTPUT_DIR%\relatorio_conciliacao.txt" --csv "%OUTPUT_DIR%\dactes.csv" --csv-ceps "%OUTPUT_DIR%\dactes_ceps.csv"
 exit /b %errorlevel%
 
 :cleanup_root_outputs
@@ -156,6 +167,9 @@ if /I "%~1"=="ctes" (
 if /I "%~1"=="nfs" (
     if exist "%OUTPUT_DIR%\impressao_nfs.pdf" del /q "%OUTPUT_DIR%\impressao_nfs.pdf" >nul 2>nul
     if exist "%OUTPUT_DIR%\relatorio_nfs.txt" del /q "%OUTPUT_DIR%\relatorio_nfs.txt" >nul 2>nul
+)
+if /I "%~1"=="ceps" (
+    if exist "%OUTPUT_DIR%\dactes_ceps.csv" del /q "%OUTPUT_DIR%\dactes_ceps.csv" >nul 2>nul
 )
 exit /b 0
 
